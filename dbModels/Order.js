@@ -1,4 +1,3 @@
-const { normalizeProduct } = require("./path_to_normalizeProduct");
 const Product = require("../dbModels/Product");
 const Order = require("../dbModels/Order");
 
@@ -21,10 +20,10 @@ exports.addOrder = async (req, res) => {
       
       // تطبيع بيانات المنتج
       return {
-        ...normalizeProduct(product),
-        quantity: item.quantity,
-        price: item.price || product.price, // استخدم السعر من المنتج أو من الطلب
-      };
+  ...product.toObject(),   // يحول الـ product لبيانات جاهزة
+  quantity: item.quantity,
+  price: item.price || product.price,
+};
     }));
 
     // تحقق من طرق الدفع
