@@ -1,7 +1,9 @@
 const router = require("express").Router();
 const { register, login } = require("../controllers/authController");
 
-// التحقق من المدخلات
+// ===============================
+// Validate Register
+// ===============================
 const validateRegisterInput = (req, res, next) => {
   const { name, email, password } = req.body;
 
@@ -9,7 +11,7 @@ const validateRegisterInput = (req, res, next) => {
     return res.status(400).json({ error: "All fields are required" });
   }
 
-  // تحقق من البريد الإلكتروني
+  // Email pattern
   const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
   if (!emailRegex.test(email)) {
     return res.status(400).json({ error: "Invalid email format" });
@@ -18,6 +20,9 @@ const validateRegisterInput = (req, res, next) => {
   next();
 };
 
+// ===============================
+// Validate Login
+// ===============================
 const validateLoginInput = (req, res, next) => {
   const { email, password } = req.body;
 
@@ -28,10 +33,14 @@ const validateLoginInput = (req, res, next) => {
   next();
 };
 
-// Register new user with validation
+// ===============================
+// Routes
+// ===============================
+
+// Register
 router.post("/register", validateRegisterInput, register);
 
-// Login user with validation
+// Login
 router.post("/login", validateLoginInput, login);
 
 module.exports = router;
