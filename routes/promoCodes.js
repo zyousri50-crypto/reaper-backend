@@ -6,17 +6,22 @@ const {
   getPromos,
   validatePromo,
   updatePromo,
-  deletePromo
+  deletePromo,
 } = require("../controllers/promoCodeController");
 
-const { auth, admin } = require("../middleware/auth");
+// 👈 تعديل المسار الصحيح
+const { auth, admin } = require("../middleware/authMiddleware");
 
+// ======================
 // ADMIN ROUTES
+// ======================
 router.post("/", auth, admin, createPromo);
 router.put("/:code", auth, admin, updatePromo);
 router.delete("/:code", auth, admin, deletePromo);
 
+// ======================
 // PUBLIC ROUTES
+// ======================
 router.get("/", getPromos);
 router.post("/validate", validatePromo);
 
