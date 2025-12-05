@@ -1,7 +1,6 @@
 const User = require("../dbModels/User");
-const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { body, validationResult } = require("express-validator"); // إضافة مكتبة للتحقق من المدخلات
+const { body, validationResult } = require("express-validator");
 
 // ===============================
 // Register (Create First Admin)
@@ -9,8 +8,11 @@ const { body, validationResult } = require("express-validator"); // إضافة �
 exports.register = async (req, res) => {
   try {
     // Validate input
-    await body('email').isEmail().withMessage('Invalid email').run(req);
-    await body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters').run(req);
+    await body("email").isEmail().withMessage("Invalid email").run(req);
+    await body("password")
+      .isLength({ min: 6 })
+      .withMessage("Password must be at least 6 characters")
+      .run(req);
 
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -25,21 +27,25 @@ exports.register = async (req, res) => {
       return res.status(400).json({ error: "Email already exists" });
     }
 
-    // Hash password
-    const hash = await bcrypt.hash(password, 10);
-
     // First user becomes admin
     const isFirstUser = (await User.countDocuments()) === 0;
 
     const newUser = await User.create({
       name,
       email,
-      password: hash,
-      isAdmin: isFirstUser
+      password, // ⚠ بدون hashing — Schema هيتولى التشفير
+      isAdmin: isFirstUser,
     });
 
-    res.json({ message: "User registered", user: { id: newUser._id, name: newUser.name, email: newUser.email, isAdmin: newUser.isAdmin } });
-
+    res.json({
+      message: "User registered",
+      user: {
+        id: newUser._id,
+        name: newUser.name,
+        email: newUser.email,
+        isAdmin: newUser.isAdmin,
+      },
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -54,7 +60,9 @@ exports.login = async (req, res) => {
 
     // Validate input
     if (!email || !password) {
-      return res.status(400).json({ error: "Email and password are required" });
+      return res.status(400).json({
+        error: "Email and password are required",
+      });
     }
 
     // Find user
@@ -63,8 +71,8 @@ exports.login = async (req, res) => {
       return res.status(400).json({ error: "Invalid email or password" });
     }
 
-    // Compare passwords
-    const match = await bcrypt.compare(password, user.password);
+    // Compare passwords (باستخدام الدالة من الـ Schema)
+    const match = await user.comparePassword(password);
     if (!match) {
       return res.status(400).json({ error: "Invalid email or password" });
     }
@@ -83,10 +91,9 @@ exports.login = async (req, res) => {
         id: user._id,
         email: user.email,
         name: user.name,
-        isAdmin: user.isAdmin
-      }
+        isAdmin: user.isAdmin,
+      },
     });
-
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
