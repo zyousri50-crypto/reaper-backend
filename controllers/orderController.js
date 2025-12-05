@@ -1,78 +1,127 @@
-const Product = require("../dbModels/Product");
+const axios = require("axios");
 const Order = require("../dbModels/Order");
 
-exports.addOrder = async (req, res) => {
+// ==================================================
+// ⭐ SEND WHATSAPP FUNCTION
+// ==================================================
+const sendWhatsApp = async (phone, status, orderId) => {
   try {
-    const { items, name, phone, address, city, paymentMethod, total } = req.body;
+    const idStr = String(orderId);
+    const shortId = idStr.slice(-6);
 
-    // التحقق من وجود عناصر الطلب
-    if (!items || items.length === 0) {
-      return res.status(400).json({ error: "Items cannot be empty" });
-    }
+    const message =
+      status === "processing"
+        ? `🔄 طلبك رقم ${shortId} جاري تجهيزه الآن.`
+        : status === "shipped"
+        ? `🚚 طلبك رقم ${shortId} خرج مع المندوب وهو في الطريق إليك.`
+        : status === "delivered"
+        ? `✅ تم تسليم طلبك رقم ${shortId} بنجاح! ❤️`
+        : `✔️ تم استلام طلبك رقم ${shortId} بنجاح.`;
 
-    // التحقق من وجود المنتجات فعلاً
-    const normalizedItems = await Promise.all(
-      items.map(async (item) => {
-        const product = await Product.findById(item.productId);
-
-        if (!product) {
-          throw new Error(`Product with ID ${item.productId} not found`);
-        }
-
-        return {
-          productId: product._id,
-          name: product.name,
-          price: item.price || product.price,
-          quantity: item.quantity,
-          image: product.image || null,
-        };
-      })
+    await axios.post(
+      "https://api.ultramsg.com/instance153217/messages/chat?token=0egooobqitqzhbxd",
+      {
+        to: phone.startsWith("+") ? phone : `+2${phone}`,
+        body: message,
+        priority: "10",
+      }
     );
 
-    // التحقق من طريقة الدفع
-    const validPaymentMethods = ["credit_card", "paypal", "cash_on_delivery"];
-    if (!validPaymentMethods.includes(paymentMethod)) {
-      return res.status(400).json({ error: "Invalid payment method" });
-    }
-
-    // إنشاء الطلب
-    const newOrder = new Order({
-      name,
-      phone,
-      address,
-      city,
-      paymentMethod,
-      items: normalizedItems,
-      total,
-    });
-
-    const savedOrder = await newOrder.save();
-    res.json(savedOrder);
-
+    console.log("WhatsApp Sent →", phone);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.log("WhatsApp Error:", err?.response?.data || err);
   }
 };
 
-// عرض جميع الطلبات
-exports.getOrders = async (req, res) => {
+// ==================================================
+// CREATE ORDER
+// ==================================================
+exports.createOrder = async (req, res) => {
+  try {
+    const { name, phone, address, items } = req.body;
+
+    if (!name || !phone || !address || !items || items.length === 0) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const order = new Order(req.body);
+    await order.save();
+
+    res.json(order);
+  } catch (e) {
+    console.log(e);
+    res.status(500).json({ error: "Failed to create order" });
+  }
+};
+
+// ==================================================
+// GET ALL ORDERS
+// ==================================================
+exports.getOrders = async (_, res) => {
   try {
     const orders = await Order.find().sort({ createdAt: -1 });
     res.json(orders);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (e) {
+    console.log(e);
+    res.status(500).json({ error: "Failed to fetch orders" });
   }
 };
 
-// عرض طلب واحد
-exports.getOrderById = async (req, res) => {
+// ==================================================
+// UPDATE STATUS
+// ==================================================
+exports.updateStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+
+    if (!["confirmed", "processing", "shipped", "delivered"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status" });
+    }
+
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ error: "Order not found" });
+
+    order.status = status;
+    await order.save();
+
+    if (status !== "confirmed") {
+      await sendWhatsApp(order.phone, status, order._id);
+    }
+
+    res.json({ msg: "Status updated", order });
+  } catch (e) {
+    console.log(e);
+    res.status(500).json({ error: "Failed to update status" });
+  }
+};
+
+// ==================================================
+// MANUAL SEND WHATSAPP
+// ==================================================
+exports.sendManualWhatsApp = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ error: "Order not found" });
+
+    await sendWhatsApp(order.phone, order.status, order._id);
+
+    res.json({ msg: "WhatsApp Sent!" });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to send WhatsApp" });
+  }
+};
+
+// ==================================================
+// DELETE ORDER
+// ==================================================
+exports.deleteOrder = async (req, res) => {
+  try {
+    const order = await Order.findByIdAndDelete(req.params.id);
 
     if (!order) return res.status(404).json({ error: "Order not found" });
 
-    res.json(order);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({ msg: "Order deleted successfully" });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to delete order" });
   }
 };
