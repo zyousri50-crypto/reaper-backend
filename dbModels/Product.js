@@ -1,38 +1,28 @@
 const mongoose = require("mongoose");
 
 const ProductSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true, trim: true },
-    title: { type: String, trim: true },
-    description: { type: String, default: "", trim: true },
+  {
+    // ... (باقي الحقول دون تغيير) ...
 
-    price: { type: Number, required: true, min: 0 },
-    originalPrice: { type: Number, min: 0 },
-    discount: { type: Number, default: 0, min: 0, max: 100 },
+    // جاليري صور
+    images: { type: [String], default: [] },
 
-    // الصورة الرئيسية
-    image: { type: String, required: true },
+    // المقاسات (يمكن الإبقاء عليها كنصوص إذا لم تضف تفاصيل أخرى)
+    sizes: { type: [String], default: [] }, 
 
-    // جاليري صور
-    images: { type: [String], default: [] },
+    // 🎨 التعديل لحل خطأ 500: تغيير من [String] إلى مصفوفة كائنات مُحددة
+    colors: [
+        {
+            name: { type: String, required: true },
+            hex: { type: String, required: true }
+        }
+    ],
 
-    // المقاسات (STRING[] فقط)
-    sizes: { type: [String], default: [] },
+    category: { type: String, required: true },
 
-    // الألوان (STRING[] مثل ["Red", "Black", "White"])
-    colors: { type: [String], default: [] },
-
-    category: { type: String, required: true },
-
-    featured: { type: Boolean, default: false },
-    inStock: { type: Boolean, default: true },
-
-    bestSelling: { type: Boolean, default: false },
-    newArrival: { type: Boolean, default: false },
-
-    promoCode: { type: String, default: null },
-  },
-  { timestamps: true }
+    // ... (باقي الحقول دون تغيير) ...
+  },
+  { timestamps: true }
 );
 
 module.exports = mongoose.model("Product", ProductSchema);
