@@ -19,10 +19,18 @@ router.get("/", getProducts);
 router.get("/:id", getProduct);
 
 // ---------------- ADD PRODUCT (with images upload) ----------------
-router.post("/", upload.array("images", 10), validateProductInput, addProduct);
+router.post("/", upload.array("images", 10), validateProductInput, (req, res, next) => {
+  console.log("Received product data:", req.body); // Log the received data
+  console.log("Uploaded files:", req.files); // Log the uploaded files
+  addProduct(req, res, next);
+});
 
 // ---------------- UPDATE PRODUCT (with images upload) ----------------
-router.put("/:id", upload.array("images", 10), validateProductInput, updateProduct);
+router.put("/:id", upload.array("images", 10), validateProductInput, (req, res, next) => {
+  console.log("Received update data for product:", req.body); // Log the received data
+  console.log("Uploaded files for update:", req.files); // Log the uploaded files for update
+  updateProduct(req, res, next);
+});
 
 // ---------------- DELETE PRODUCT ----------------
 router.delete("/:id", deleteProduct);
