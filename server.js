@@ -5,7 +5,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-const path = require("path"); // 🌟 يجب استيراد Path هنا 🌟
+const path = require("path");
 require("dotenv").config();
 
 const app = express();
@@ -15,7 +15,7 @@ const app = express();
 // =======================
 
 const allowedOrigins = [
-    "https://thereaper.top", 
+    "https://thereaper.top", 
     "https://darkcyan-hedgehog-829562.hostingersite.com",
     "http://localhost:5173",
 ];
@@ -40,10 +40,8 @@ app.use(
 
 app.use(express.json({ limit: "20mb" }));
 
-// 🌟🌟🌟 الكود الذي يجب إضافته هنا 🌟🌟🌟
 // يخدم الملفات من مجلد 'uploads' عندما يطلب المتصفح مسار /uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-// 🌟🌟🌟 نهاية الكود المُضاف 🌟🌟🌟
 
 // =======================
 // Routes
@@ -64,6 +62,31 @@ app.use("/api/promocodes", promoCodeRoutes);
 app.get("/", (req, res) => {
     res.send("REAPER API is running...");
 });
+
+// =======================
+// 🌟🌟🌟 معالج الأخطاء المركزي المضاف حديثًا 🌟🌟🌟
+// هذا يضمن أن أي خطأ غير مُعالج (Unhandled Exception) سيرسل استجابة JSON 500
+// بدلاً من السقوط في أي مسار افتراضي لصفحات HTML (Catch-all route).
+// =======================
+app.use((err, req, res, next) => {
+    // نتحقق مما إذا تم إرسال الـ Headers بالفعل لتجنب الأخطاء
+    if (res.headersSent) {
+        return next(err);
+    }
+    
+    console.error("🔥 GLOBAL ERROR HANDLER:", err.stack);
+    
+    // نرسل استجابة JSON Status 500
+    res.status(err.status || 500).json({
+        message: err.message || "An unexpected server error occurred.",
+        // يمكن إزالة الـ stack في بيئة الإنتاج لأسباب أمنية
+        stack: process.env.NODE_ENV === 'production' ? null : err.stack, 
+    });
+});
+// =======================
+// 🌟🌟🌟 نهاية الكود المضاف 🌟🌟🌟
+// =======================
+
 
 // =======================
 // Server + DB
