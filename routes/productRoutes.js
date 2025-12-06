@@ -3,7 +3,8 @@ const router = express.Router();
 const { getProducts, getProduct, addProduct, updateProduct, deleteProduct } = require("../controllers/productController");
 const upload = require("../middleware/upload");
 
-// ⭐⭐ يجب استيراد دوال المصادقة من ملفها ⭐⭐
+// ⭐⭐ التصحيح الأهم: مسار الاستيراد لحل مشكلة 'MODULE_NOT_FOUND' ⭐⭐
+// تأكد أن المسار (../middleware/auth) صحيح لموقع ملف auth.js
 const { auth, admin } = require("../middleware/auth"); 
 
 // Helper for input validation
@@ -21,37 +22,37 @@ router.get("/", getProducts);
 // ---------------- GET SINGLE PRODUCT (عام - لا يحتاج مصادقة) ----------------
 router.get("/:id", getProduct);
 
-// ---------------- ADD PRODUCT (يجب إضافة auth, admin) ----------------
+// ---------------- ADD PRODUCT (محمي بواسطة auth و admin) ----------------
 // التسلسل: [تحقق من التوكن] -> [تحقق من المدير] -> [رفع الصور] -> [التحقق من البيانات] -> [الدالة الرئيسية]
 router.post(
-  "/", 
-  auth, 
-  admin, 
-  upload.array("images", 10), 
-  validateProductInput, 
-  (req, res, next) => {
+  "/", 
+  auth, 
+  admin, 
+  upload.array("images", 10), 
+  validateProductInput, 
+  (req, res, next) => {
     console.log("Received product data:", req.body);
     console.log("Uploaded files:", req.files);
     addProduct(req, res, next);
-  }
+  }
 );
 
-// ---------------- UPDATE PRODUCT (يجب إضافة auth, admin) ----------------
+// ---------------- UPDATE PRODUCT (محمي بواسطة auth و admin) ----------------
 // التسلسل: [تحقق من التوكن] -> [تحقق من المدير] -> [رفع الصور] -> [التحقق من البيانات] -> [الدالة الرئيسية]
 router.put(
-  "/:id", 
-  auth, 
-  admin, 
-  upload.array("images", 10), 
-  validateProductInput, 
-  (req, res, next) => {
+  "/:id", 
+  auth, 
+  admin, 
+  upload.array("images", 10), 
+  validateProductInput, 
+  (req, res, next) => {
     console.log("Received update data for product:", req.body);
     console.log("Uploaded files for update:", req.files);
     updateProduct(req, res, next);
-  }
+  }
 );
 
-// ---------------- DELETE PRODUCT (يجب إضافة auth, admin) ----------------
+// ---------------- DELETE PRODUCT (محمي بواسطة auth و admin) ----------------
 router.delete("/:id", auth, admin, deleteProduct);
 
 module.exports = router;
