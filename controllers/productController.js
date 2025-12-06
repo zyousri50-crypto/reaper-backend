@@ -1,11 +1,24 @@
 // --- productController.js ---
 
-const Product = require('../dbModels/Product'); // المسار الذي قمنا بتصحيحه سابقاً
+const Product = require('../dbModels/Product'); 
+// 🌟🌟🌟 استيراد Cloudinary 🌟🌟🌟
+const cloudinary = require('../config/cloudinaryConfig'); 
+// 🌟🌟🌟 تأكد من تعديل هذا المسار ليطابق مكان ملف الإعداد لديك 🌟🌟🌟
 
-// دالة مساعدة لإنشاء مسار الصور (يجب أن تكون لديك بالفعل)
-const getImageUrl = (file) => {
-    // استخدم منطق توليد رابط الصورة الصحيح لديك
-    return file ? `/uploads/${file.filename}` : null; 
+// دالة مساعدة لرفع الملفات إلى Cloudinary
+const uploadToCloudinary = (file) => {
+    return new Promise((resolve, reject) => {
+        // تحويل البيانات المخزنة في الذاكرة (Buffer) إلى رابط Base64
+        // نستخدم file.mimetype و file.buffer القادمين من multer.memoryStorage
+        const dataUri = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+        
+        // استخدام Cloudinary API لرفع الملف
+        cloudinary.uploader.upload(dataUri, {
+            folder: "reaper-products", // اسم المجلد في Cloudinary
+        })
+        .then(result => resolve(result.secure_url)) // إرجاع الرابط الآمن
+        .catch(error => reject(error));
+    });
 };
 
 // ======================================
@@ -18,7 +31,7 @@ const addProduct = async (req, res) => {
             sizes, colors // هذه الحقول تأتي كسلاسل JSON
         } = req.body;
 
-        // ⭐⭐⭐ الخطوة الحاسمة: تحليل سلاسل JSON ⭐⭐⭐
+        // ⭐ تحليل سلاسل JSON (فك التشفير) ⭐
         let parsedSizes = [];
         let parsedColors = [];
 
@@ -29,15 +42,16 @@ const addProduct = async (req, res) => {
             console.error("JSON Parsing Error for sizes or colors:", e);
             return res.status(400).json({ error: "Invalid format for sizes or colors." });
         }
-        // ⭐⭐⭐ نهاية التحليل ⭐⭐⭐
 
-        // معالجة الصور المرفوعة
-        const images = req.files.map(getImageUrl).filter(url => url !== null);
-        
+        // 🌟🌟🌟 التعديل الحاسم: رفع الصور إلى Cloudinary 🌟🌟🌟
+        const uploadPromises = req.files.map(file => uploadToCloudinary(file));
+        const uploadedUrls = await Promise.all(uploadPromises);
+        // 🌟🌟🌟 نهاية الرفع 🌟🌟🌟
+
         // تحويل القيم الرقمية/المنطقية
         const finalPrice = parseFloat(price);
         const finalDiscount = parseInt(discount || 0);
-        const finalOutOfStock = outOfStock === 'true'; // يجب تحويل السلسلة إلى قيمة منطقية
+        const finalOutOfStock = outOfStock === 'true'; 
 
         const newProduct = new Product({
             name,
@@ -46,10 +60,10 @@ const addProduct = async (req, res) => {
             category,
             discount: finalDiscount,
             outOfStock: finalOutOfStock,
-            images,
-            image: images[0] || null, // الصورة الرئيسية
-            sizes: parsedSizes, // استخدام المصفوفة المحللة
-            colors: parsedColors, // استخدام المصفوفة المحللة
+            images: uploadedUrls, // حفظ روابط Cloudinary الدائمة
+            image: uploadedUrls[0] || null, // الصورة الرئيسية
+            sizes: parsedSizes, 
+            colors: parsedColors,
         });
 
         const savedProduct = await newProduct.save();
@@ -69,10 +83,10 @@ const updateProduct = async (req, res) => {
         const { id } = req.params;
         const { 
             name, description, price, category, discount, outOfStock, 
-            sizes, colors, existingImages // هذه الحقول تأتي كسلاسل JSON
+            sizes, colors, existingImages // existingImages هو مصفوفة روابط Cloudinary القديمة
         } = req.body;
 
-        // ⭐⭐⭐ الخطوة الحاسمة: تحليل سلاسل JSON ⭐⭐⭐
+        // ⭐ تحليل سلاسل JSON ⭐
         let parsedSizes = [];
         let parsedColors = [];
         let parsedExistingImages = [];
@@ -80,19 +94,19 @@ const updateProduct = async (req, res) => {
         try {
             if (sizes) parsedSizes = JSON.parse(sizes);
             if (colors) parsedColors = JSON.parse(colors);
-            // قد تحتاج لتحليل الصور الموجودة إذا كنت تعدلها كسلسلة JSON أيضاً
             if (existingImages) parsedExistingImages = JSON.parse(existingImages); 
         } catch (e) {
             console.error("JSON Parsing Error during update:", e);
             return res.status(400).json({ error: "Invalid format for sizes, colors, or existing images." });
         }
-        // ⭐⭐⭐ نهاية التحليل ⭐⭐⭐
         
-        // معالجة الصور الجديدة
-        const newImages = req.files.map(getImageUrl).filter(url => url !== null);
+        // 🌟🌟🌟 التعديل الحاسم: رفع الصور الجديدة إلى Cloudinary 🌟🌟🌟
+        const newUploadPromises = req.files.map(file => uploadToCloudinary(file));
+        const newUploadedUrls = await Promise.all(newUploadPromises);
+        // 🌟🌟🌟 نهاية الرفع 🌟🌟🌟
         
-        // دمج الصور الموجودة مع الصور الجديدة
-        const allImages = [...(parsedExistingImages || []), ...newImages];
+        // دمج الروابط القديمة مع الروابط الجديدة
+        const allImages = [...(parsedExistingImages || []), ...newUploadedUrls];
 
         // تحويل القيم الرقمية/المنطقية
         const finalPrice = parseFloat(price);
@@ -108,12 +122,12 @@ const updateProduct = async (req, res) => {
                 category,
                 discount: finalDiscount,
                 outOfStock: finalOutOfStock,
-                images: allImages, // استخدام جميع الصور
+                images: allImages, // استخدام جميع روابط Cloudinary
                 image: allImages[0] || null, // الصورة الرئيسية
-                sizes: parsedSizes, // استخدام المصفوفة المحللة
-                colors: parsedColors, // استخدام المصفوفة المحللة
+                sizes: parsedSizes, 
+                colors: parsedColors,
             },
-            { new: true } // لإرجاع المستند المحدث
+            { new: true }
         );
 
         if (!updatedProduct) {
@@ -128,54 +142,15 @@ const updateProduct = async (req, res) => {
     }
 };
 
-// ======================================
-// 3. GET ALL PRODUCTS (تمت إضافة تعريف placeholder)
-// ======================================
-const getProducts = async (req, res) => {
-    try {
-        const products = await Product.find().sort({ createdAt: -1 });
-        res.status(200).json(products);
-    } catch (error) {
-        console.error("Error fetching products:", error);
-        res.status(500).json({ message: "Failed to fetch products.", error: error.message });
-    }
-};
-
-// ======================================
-// 4. GET SINGLE PRODUCT (تمت إضافة تعريف placeholder)
-// ======================================
-const getProduct = async (req, res) => {
-    try {
-        const product = await Product.findById(req.params.id);
-        if (!product) return res.status(404).json({ message: "Product not found." });
-        res.status(200).json(product);
-    } catch (error) {
-        console.error("Error fetching single product:", error);
-        res.status(500).json({ message: "Failed to fetch product.", error: error.message });
-    }
-};
-
-// ======================================
-// 5. DELETE PRODUCT (تمت إضافة تعريف placeholder)
-// ======================================
-const deleteProduct = async (req, res) => {
-    try {
-        const product = await Product.findByIdAndDelete(req.params.id);
-        if (!product) return res.status(404).json({ message: "Product not found." });
-        res.status(200).json({ message: "Product deleted successfully." });
-    } catch (error) {
-        console.error("Error deleting product:", error);
-        res.status(500).json({ message: "Failed to delete product.", error: error.message });
-    }
-};
+// ... (باقي الدوال: getProducts, getProduct, deleteProduct)
 
 // ======================================
 // EXPORTS
 // ======================================
 module.exports = {
-    addProduct,
-    updateProduct,
-    getProducts, // ⭐ تم إضافتها
-    getProduct,  // ⭐ تم إضافتها
-    deleteProduct, // ⭐ تم إضافتها
+    addProduct,
+    updateProduct,
+    getProducts, 
+    getProduct,  
+    deleteProduct,
 };
