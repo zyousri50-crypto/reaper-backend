@@ -15,10 +15,29 @@ const app = express();
 // =======================
 
 const allowedOrigins = [
-    "https://thereaper.top", 
-    "https://darkcyan-hedgehog-829562.hostingersite.com",
-    "http://localhost:5173",
+    "https://thereaper.top",
+    "https://www.thereaper.top",
+    "http://thereaper.top",
+    "https://darkcyan-hedgehog-829562.hostingersite.com",
+    "http://localhost:5173",
 ];
+
+app.use(
+    cors({
+        origin: function (origin, callback) {
+            if (!origin || allowedOrigins.includes(origin)) {
+                callback(null, true);
+            } else {
+                console.log("❌ Blocked by CORS:", origin);
+                callback(new Error("CORS Blocked"));
+            }
+        },
+        methods: ["GET", "POST", "PUT", "DELETE"],
+        allowedHeaders: ["Content-Type", "Authorization"],
+        credentials: true,
+    })
+);
+
 
 app.use(
     cors({
