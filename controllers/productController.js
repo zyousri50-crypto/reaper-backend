@@ -1,205 +1,137 @@
-const Product = require("../dbModels/Product");
-const cloudinary = require("../cloudinary");
+// --- productController.js ---
 
-// ========================
-// Helper: Upload to Cloudinary
-// ========================
-const uploadToCloudinary = (fileBuffer) => {
-  return new Promise((resolve, reject) => {
-    cloudinary.uploader.upload_stream(
-      {
-        folder: "products",
-        allowed_formats: ["jpg", "jpeg", "png", "gif", "webp"]
-      },
-      (error, result) => {
-        if (error) reject(error);
-        else resolve(result.secure_url);
-      }
-    ).end(fileBuffer);
-  });
+const Product = require('../models/Product'); // افترض أنك تستورد نموذج المنتج
+
+// دالة مساعدة لإنشاء مسار الصور (يجب أن تكون لديك بالفعل)
+const getImageUrl = (file) => {
+    // استخدم منطق توليد رابط الصورة الصحيح لديك
+    return file ? `/uploads/${file.filename}` : null; 
 };
 
-// ========================
-// GET ALL PRODUCTS
-// ========================
-exports.getProducts = async (req, res) => {
-  try {
-    const products = await Product.find().sort({ createdAt: -1 });
-    res.json(products);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch products: " + err.message });
-  }
-};
+// ======================================
+// 1. ADD PRODUCT (إضافة منتج)
+// ======================================
+const addProduct = async (req, res) => {
+    try {
+        const { 
+            name, description, price, category, discount, outOfStock, 
+            sizes, colors // هذه الحقول تأتي كسلاسل JSON
+        } = req.body;
 
-// ========================
-// GET SINGLE PRODUCT
-// ========================
-exports.getProduct = async (req, res) => {
-  try {
-    const product = await Product.findById(req.params.id);
-    if (!product)
-      return res.status(404).json({ error: "Product not found" });
+        // ⭐⭐⭐ الخطوة الحاسمة: تحليل سلاسل JSON ⭐⭐⭐
+        let parsedSizes = [];
+        let parsedColors = [];
 
-    res.json(product);
-  } catch (err) {
-    res.status(500).json({ error: "Error fetching product: " + err.message });
-  }
-};
+        try {
+            if (sizes) parsedSizes = JSON.parse(sizes);
+            if (colors) parsedColors = JSON.parse(colors);
+        } catch (e) {
+            console.error("JSON Parsing Error for sizes or colors:", e);
+            return res.status(400).json({ error: "Invalid format for sizes or colors." });
+        }
+        // ⭐⭐⭐ نهاية التحليل ⭐⭐⭐
 
-// =====================================================================
-// ADD PRODUCT  (Supports images + sizes + colors)
-// =====================================================================
-exports.addProduct = async (req, res) => {
-  try {
-    let imageUrls = [];
+        // معالجة الصور المرفوعة
+        const images = req.files.map(getImageUrl).filter(url => url !== null);
+        
+        // تحويل القيم الرقمية/المنطقية
+        const finalPrice = parseFloat(price);
+        const finalDiscount = parseInt(discount || 0);
+        const finalOutOfStock = outOfStock === 'true'; // يجب تحويل السلسلة إلى قيمة منطقية
 
-    // Upload multiple images
-    if (req.files && req.files.length > 0) {
-      for (let file of req.files) {
-        const url = await uploadToCloudinary(file.buffer);
-        imageUrls.push(url);
-      }
+        const newProduct = new Product({
+            name,
+            description,
+            price: finalPrice,
+            category,
+            discount: finalDiscount,
+            outOfStock: finalOutOfStock,
+            images,
+            image: images[0] || null, // الصورة الرئيسية
+            sizes: parsedSizes, // استخدام المصفوفة المحللة
+            colors: parsedColors, // استخدام المصفوفة المحللة
+        });
+
+        const savedProduct = await newProduct.save();
+        res.status(201).json(savedProduct);
+
+    } catch (error) {
+        console.error("Error adding product:", error);
+        res.status(500).json({ message: "Failed to add product.", error: error.message });
     }
-
-    // Required fields
-    if (!req.body.name || !req.body.price || !req.body.category) {
-      return res.status(400).json({
-        error: "Missing required fields: name, price, category",
-      });
-    }
-
-    // Safely parse JSON fields
-    const parseJSON = (value) => {
-      try {
-        return value ? JSON.parse(value) : [];
-      } catch {
-        return [];
-      }
-    };
-
-    const newProduct = new Product({
-      name: req.body.name,
-      title: req.body.title || req.body.name,
-      description: req.body.description || "",
-
-      price: Number(req.body.price),
-      originalPrice: Number(req.body.originalPrice) || null,
-      discount: Number(req.body.discount) || 0,
-
-      category: req.body.category,
-
-      image: imageUrls[0] || "",
-      images: imageUrls,
-
-      sizes: parseJSON(req.body.sizes),
-      colors: parseJSON(req.body.colors),
-
-      featured: req.body.featured === "true",
-      inStock: req.body.inStock !== "false",
-      bestSelling: req.body.bestSelling === "true",
-      newArrival: req.body.newArrival === "true",
-
-      promoCode: req.body.promoCode || null
-    });
-
-    const saved = await newProduct.save();
-    res.json(saved);
-
-  } catch (err) {
-    console.log("Add Product Error:", err);
-    res.status(500).json({ error: "Error adding product: " + err.message });
-  }
 };
 
-// =====================================================================
-// UPDATE PRODUCT  (Images + Sizes + Colors supported)
-// =====================================================================
-exports.updateProduct = async (req, res) => {
-  try {
-    let updateData = {};
+// ======================================
+// 2. UPDATE PRODUCT (تعديل منتج)
+// ======================================
+const updateProduct = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { 
+            name, description, price, category, discount, outOfStock, 
+            sizes, colors, existingImages // هذه الحقول تأتي كسلاسل JSON
+        } = req.body;
 
-    // Basic fields
-    const fields = [
-      "name", "title", "description",
-      "price", "originalPrice", "discount",
-      "category", "featured", "inStock",
-      "bestSelling", "newArrival", "promoCode"
-    ];
+        // ⭐⭐⭐ الخطوة الحاسمة: تحليل سلاسل JSON ⭐⭐⭐
+        let parsedSizes = [];
+        let parsedColors = [];
+        let parsedExistingImages = [];
 
-    fields.forEach((field) => {
-      if (req.body[field] !== undefined) {
-        updateData[field] =
-          field === "price" ||
-          field === "originalPrice" ||
-          field === "discount"
-            ? Number(req.body[field])
-            : req.body[field];
-      }
-    });
+        try {
+            if (sizes) parsedSizes = JSON.parse(sizes);
+            if (colors) parsedColors = JSON.parse(colors);
+            // قد تحتاج لتحليل الصور الموجودة إذا كنت تعدلها كسلسلة JSON أيضاً
+            if (existingImages) parsedExistingImages = JSON.parse(existingImages); 
+        } catch (e) {
+            console.error("JSON Parsing Error during update:", e);
+            return res.status(400).json({ error: "Invalid format for sizes, colors, or existing images." });
+        }
+        // ⭐⭐⭐ نهاية التحليل ⭐⭐⭐
+        
+        // معالجة الصور الجديدة
+        const newImages = req.files.map(getImageUrl).filter(url => url !== null);
+        
+        // دمج الصور الموجودة مع الصور الجديدة
+        const allImages = [...(parsedExistingImages || []), ...newImages];
 
-    // Convert boolean strings
-    ["featured", "inStock", "bestSelling", "newArrival"].forEach((b) => {
-      if (req.body[b] !== undefined) {
-        updateData[b] = req.body[b] === "true";
-      }
-    });
+        // تحويل القيم الرقمية/المنطقية
+        const finalPrice = parseFloat(price);
+        const finalDiscount = parseInt(discount || 0);
+        const finalOutOfStock = outOfStock === 'true';
 
-    // Parse JSON fields
-    const parseJSON = (v) => {
-      try {
-        return v ? JSON.parse(v) : undefined;
-      } catch {
-        return undefined;
-      }
-    };
+        const updatedProduct = await Product.findByIdAndUpdate(
+            id,
+            {
+                name,
+                description,
+                price: finalPrice,
+                category,
+                discount: finalDiscount,
+                outOfStock: finalOutOfStock,
+                images: allImages, // استخدام جميع الصور
+                image: allImages[0] || null, // الصورة الرئيسية
+                sizes: parsedSizes, // استخدام المصفوفة المحللة
+                colors: parsedColors, // استخدام المصفوفة المحللة
+            },
+            { new: true } // لإرجاع المستند المحدث
+        );
 
-    const parsedSizes = parseJSON(req.body.sizes);
-    const parsedColors = parseJSON(req.body.colors);
+        if (!updatedProduct) {
+            return res.status(404).json({ message: "Product not found." });
+        }
 
-    if (parsedSizes) updateData.sizes = parsedSizes;
-    if (parsedColors) updateData.colors = parsedColors;
+        res.json(updatedProduct);
 
-    // =======================
-    // Handle image uploads
-    // =======================
-    if (req.files?.length > 0) {
-      let newUrls = [];
-      for (let file of req.files) {
-        const url = await uploadToCloudinary(file.buffer);
-        newUrls.push(url);
-      }
-
-      const oldImages = parseJSON(req.body.oldImages) || [];
-      updateData.images = [...oldImages, ...newUrls];
-      updateData.image = updateData.images[0];
+    } catch (error) {
+        console.error("Error updating product:", error);
+        res.status(500).json({ message: "Failed to update product.", error: error.message });
     }
-
-    const updatedProduct = await Product.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true }
-    );
-
-    res.json(updatedProduct);
-
-  } catch (err) {
-    console.log("Update Product Error:", err);
-    res.status(500).json({ error: "Error updating product: " + err.message });
-  }
 };
 
-// ========================
-// DELETE PRODUCT
-// ========================
-exports.deleteProduct = async (req, res) => {
-  try {
-    const deletedProduct = await Product.findByIdAndDelete(req.params.id);
+// ... (بقية دوال getProducts, getProduct, deleteProduct)
 
-    if (!deletedProduct)
-      return res.status(404).json({ error: "Product not found" });
-
-    res.json({ message: "Product deleted" });
-  } catch (err) {
-    res.status(500).json({ error: "Error deleting product: " + err.message });
-  }
+module.exports = {
+    addProduct,
+    updateProduct,
+    // ...
 };
