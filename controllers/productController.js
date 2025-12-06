@@ -1,21 +1,17 @@
 // --- productController.js ---
 
 const Product = require('../dbModels/Product'); 
-// 🌟🌟🌟 التعديل الحاسم: تصحيح مسار استيراد Cloudinary 🌟🌟🌟
-// المسار الصحيح: العودة للخلف (..) ثم استيراد الملف مباشرة باسمه (cloudinary)
 const cloudinary = require('../cloudinary'); 
 
 // دالة مساعدة لرفع الملفات إلى Cloudinary
 const uploadToCloudinary = (file) => {
     return new Promise((resolve, reject) => {
-        // تحويل البيانات المخزنة في الذاكرة (Buffer) إلى رابط Base64
         const dataUri = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
         
-        // استخدام Cloudinary API لرفع الملف
         cloudinary.uploader.upload(dataUri, {
             folder: "reaper-products", // اسم المجلد في Cloudinary
         })
-        .then(result => resolve(result.secure_url)) // إرجاع الرابط الآمن
+        .then(result => resolve(result.secure_url)) 
         .catch(error => reject(error));
     });
 };
@@ -27,10 +23,10 @@ const addProduct = async (req, res) => {
     try {
         const { 
             name, description, price, category, discount, outOfStock, 
-            sizes, colors // هذه الحقول تأتي كسلاسل JSON
+            sizes, colors 
         } = req.body;
 
-        // 💡 التعديل 1: التحقق من السعر قبل تحليل JSON (حماية من قيم undefined/NaN)
+        // 💡 التعديل 1: التحقق من السعر (حماية من قيم undefined/NaN)
         const finalPrice = parseFloat(price);
         const finalDiscount = parseInt(discount || 0);
         const finalOutOfStock = outOfStock === 'true'; 
@@ -63,12 +59,12 @@ const addProduct = async (req, res) => {
         const newProduct = new Product({
             name,
             description,
-            price: finalPrice, // تم التحقق منه وتخزينه
+            price: finalPrice, 
             category,
             discount: finalDiscount,
             outOfStock: finalOutOfStock,
-            images: uploadedUrls, // حفظ روابط Cloudinary الدائمة
-            image: uploadedUrls[0] || null, // الصورة الرئيسية
+            images: uploadedUrls, 
+            image: uploadedUrls[0] || null, 
             sizes: parsedSizes, 
             colors: parsedColors,
         });
@@ -94,10 +90,10 @@ const updateProduct = async (req, res) => {
         const { id } = req.params;
         const { 
             name, description, price, category, discount, outOfStock, 
-            sizes, colors, existingImages // existingImages هو مصفوفة روابط Cloudinary القديمة
+            sizes, colors, existingImages 
         } = req.body;
 
-        // 💡 التعديل 2: التحقق من السعر قبل تحليل JSON
+        // 💡 التعديل 2: التحقق من السعر
         const finalPrice = parseFloat(price);
         const finalDiscount = parseInt(discount || 0);
         const finalOutOfStock = outOfStock === 'true';
@@ -128,7 +124,7 @@ const updateProduct = async (req, res) => {
         const newUploadedUrls = await Promise.all(newUploadPromises);
         // 🌟 نهاية الرفع 🌟
         
-        // دمج الروابط القديمة مع الروابط الجديدة. (إذا كان parsedExistingImages فارغاً، سيظل مصفوفة فارغة)
+        // دمج الروابط القديمة مع الروابط الجديدة.
         const allImages = [...(parsedExistingImages || []), ...newUploadedUrls];
         
         // إذا كان المستخدم قد حذف كل الصور، فسنرفض التعديل
@@ -136,16 +132,15 @@ const updateProduct = async (req, res) => {
             return res.status(400).json({ message: "Product must have at least one image." });
         }
 
-
         const updateFields = {
             name,
             description,
-            price: finalPrice, // تم التحقق منه وتخزينه
+            price: finalPrice, 
             category,
             discount: finalDiscount,
             outOfStock: finalOutOfStock,
-            images: allImages, // استخدام جميع روابط Cloudinary
-            image: allImages[0] || null, // الصورة الرئيسية
+            images: allImages, 
+            image: allImages[0] || null, 
             sizes: parsedSizes, 
             colors: parsedColors,
         };
@@ -153,7 +148,7 @@ const updateProduct = async (req, res) => {
         const updatedProduct = await Product.findByIdAndUpdate(
             id,
             updateFields,
-            { new: true, runValidators: true } // 💡 إضافة runValidators لتطبيق قواعد Mongoose
+            { new: true, runValidators: true } // 💡 إضافة runValidators
         );
 
         if (!updatedProduct) {
