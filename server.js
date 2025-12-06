@@ -6,7 +6,6 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const path = require("path");
-const cookieParser = require('cookie-parser'); // 🌟🌟🌟 تم استيراد المكتبة 🌟🌟🌟
 require("dotenv").config();
 
 const app = express();
@@ -31,7 +30,7 @@ app.use(
                 callback(new Error("CORS Blocked"));
             }
         },
-        credentials: true, // 🌟 مهم: يسمح بتبادل ملفات تعريف الارتباط عبر النطاقات المختلفة 🌟
+        credentials: true,
     })
 );
 
@@ -40,7 +39,6 @@ app.use(
 // =======================
 
 app.use(express.json({ limit: "20mb" }));
-app.use(cookieParser()); // 🌟🌟🌟 تم إضافة هذا السطر 🌟🌟🌟
 
 // يخدم الملفات من مجلد 'uploads' عندما يطلب المتصفح مسار /uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -66,7 +64,9 @@ app.get("/", (req, res) => {
 });
 
 // =======================
-// 🌟🌟🌟 معالج الأخطاء المركزي 🌟🌟🌟
+// 🌟🌟🌟 معالج الأخطاء المركزي المضاف حديثًا 🌟🌟🌟
+// هذا يضمن أن أي خطأ غير مُعالج (Unhandled Exception) سيرسل استجابة JSON 500
+// بدلاً من السقوط في أي مسار افتراضي لصفحات HTML (Catch-all route).
 // =======================
 app.use((err, req, res, next) => {
     // نتحقق مما إذا تم إرسال الـ Headers بالفعل لتجنب الأخطاء
@@ -83,6 +83,8 @@ app.use((err, req, res, next) => {
         stack: process.env.NODE_ENV === 'production' ? null : err.stack, 
     });
 });
+// =======================
+// 🌟🌟🌟 نهاية الكود المضاف 🌟🌟🌟
 // =======================
 
 
@@ -103,3 +105,4 @@ mongoose
     .catch((err) => {
         console.log("DB Error:", err);
     });
+خد عدل
