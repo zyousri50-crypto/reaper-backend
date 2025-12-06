@@ -33,7 +33,7 @@ exports.register = async (req, res) => {
     const newUser = await User.create({
       name,
       email,
-      password,
+      password, // ⚠ بدون hashing — Schema هيتولى التشفير
       isAdmin: isFirstUser,
     });
 
@@ -84,17 +84,9 @@ exports.login = async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    // 🌟🌟🌟 التعديل هنا: إرسال التوكن كـ HttpOnly Cookie 🌟🌟🌟
-    res.cookie('jwt', token, {
-        httpOnly: true, // يمنع الوصول إليه من خلال JavaScript في المتصفح (أمان أعلى)
-        secure: process.env.NODE_ENV === 'production', // يستخدم HTTPS في بيئة الإنتاج
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 أيام (نفس مدة صلاحية التوكن)
-        sameSite: 'strict', // يمنع إرسال الـ Cookie في طلبات cross-site
-    });
-
     res.json({
       message: "Login success",
-      // ❌ تم حذف إرسال التوكن في جسم الاستجابة JSON ❌
+      token,
       user: {
         id: user._id,
         email: user.email,
