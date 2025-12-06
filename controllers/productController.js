@@ -1,6 +1,6 @@
 // --- productController.js ---
 
-const Product = require('../models/Product'); // افترض أنك تستورد نموذج المنتج
+const Product = require('../dbModels/Product'); // افترض أنك تستورد نموذج المنتج
 
 // دالة مساعدة لإنشاء مسار الصور (يجب أن تكون لديك بالفعل)
 const getImageUrl = (file) => {
