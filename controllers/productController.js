@@ -24,171 +24,202 @@ const uploadToCloudinary = (file) => {
 // 1. ADD PRODUCT (إضافة منتج)
 // ======================================
 const addProduct = async (req, res) => {
-    try {
-        const { 
-            name, description, price, category, discount, outOfStock, 
-            sizes, colors // هذه الحقول تأتي كسلاسل JSON
-        } = req.body;
+    try {
+        const { 
+            name, description, price, category, discount, outOfStock, 
+            sizes, colors // هذه الحقول تأتي كسلاسل JSON
+        } = req.body;
 
-        // ⭐ تحليل سلاسل JSON (فك التشفير) ⭐
-        let parsedSizes = [];
-        let parsedColors = [];
+        // 💡 التعديل 1: التحقق من السعر قبل تحليل JSON (حماية من قيم undefined/NaN)
+        const finalPrice = parseFloat(price);
+        const finalDiscount = parseInt(discount || 0);
+        const finalOutOfStock = outOfStock === 'true'; 
 
-        try {
-            if (sizes) parsedSizes = JSON.parse(sizes);
-            if (colors) parsedColors = JSON.parse(colors);
-        } catch (e) {
-            console.error("JSON Parsing Error for sizes or colors:", e);
-            return res.status(400).json({ error: "Invalid format for sizes or colors." });
-        }
+        if (isNaN(finalPrice) || finalPrice <= 0) {
+            return res.status(400).json({ message: "Price must be a valid number greater than zero." });
+        }
 
-        // 🌟 رفع الصور إلى Cloudinary 🌟
-        const uploadPromises = req.files.map(file => uploadToCloudinary(file));
-        const uploadedUrls = await Promise.all(uploadPromises);
-        // 🌟 نهاية الرفع 🌟
+        // ⭐ تحليل سلاسل JSON (فك التشفير) ⭐
+        let parsedSizes = [];
+        let parsedColors = [];
 
-        // تحويل القيم الرقمية/المنطقية
-        const finalPrice = parseFloat(price);
-        const finalDiscount = parseInt(discount || 0);
-        const finalOutOfStock = outOfStock === 'true'; 
+        try {
+            if (sizes) parsedSizes = JSON.parse(sizes);
+            if (colors) parsedColors = JSON.parse(colors);
+        } catch (e) {
+            console.error("JSON Parsing Error for sizes or colors:", e);
+            return res.status(400).json({ error: "Invalid format for sizes or colors." });
+        }
 
-        const newProduct = new Product({
-            name,
-            description,
-            price: finalPrice,
-            category,
-            discount: finalDiscount,
-            outOfStock: finalOutOfStock,
-            images: uploadedUrls, // حفظ روابط Cloudinary الدائمة
-            image: uploadedUrls[0] || null, // الصورة الرئيسية
-            sizes: parsedSizes, 
-            colors: parsedColors,
-        });
+        // 🌟 رفع الصور إلى Cloudinary 🌟
+        if (!req.files || req.files.length === 0) {
+             return res.status(400).json({ message: "At least one image is required." });
+        }
+        
+        const uploadPromises = req.files.map(file => uploadToCloudinary(file));
+        const uploadedUrls = await Promise.all(uploadPromises);
+        // 🌟 نهاية الرفع 🌟
 
-        const savedProduct = await newProduct.save();
-        res.status(201).json(savedProduct);
+        const newProduct = new Product({
+            name,
+            description,
+            price: finalPrice, // تم التحقق منه وتخزينه
+            category,
+            discount: finalDiscount,
+            outOfStock: finalOutOfStock,
+            images: uploadedUrls, // حفظ روابط Cloudinary الدائمة
+            image: uploadedUrls[0] || null, // الصورة الرئيسية
+            sizes: parsedSizes, 
+            colors: parsedColors,
+        });
 
-    } catch (error) {
-        console.error("Error adding product:", error);
-        res.status(500).json({ message: "Failed to add product.", error: error.message });
-    }
+        const savedProduct = await newProduct.save();
+        res.status(201).json(savedProduct);
+
+    } catch (error) {
+        // رسالة خطأ أكثر تفصيلاً في حالة فشل التحقق من المخطط (Schema)
+        if (error.name === 'ValidationError') {
+             return res.status(400).json({ message: "Validation failed: " + error.message });
+        }
+        console.error("Error adding product:", error);
+        res.status(500).json({ message: "Failed to add product.", error: error.message });
+    }
 };
 
 // ======================================
 // 2. UPDATE PRODUCT (تعديل منتج)
 // ======================================
 const updateProduct = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { 
-            name, description, price, category, discount, outOfStock, 
-            sizes, colors, existingImages // existingImages هو مصفوفة روابط Cloudinary القديمة
-        } = req.body;
+    try {
+        const { id } = req.params;
+        const { 
+            name, description, price, category, discount, outOfStock, 
+            sizes, colors, existingImages // existingImages هو مصفوفة روابط Cloudinary القديمة
+        } = req.body;
 
-        // ⭐ تحليل سلاسل JSON ⭐
-        let parsedSizes = [];
-        let parsedColors = [];
-        let parsedExistingImages = [];
+        // 💡 التعديل 2: التحقق من السعر قبل تحليل JSON
+        const finalPrice = parseFloat(price);
+        const finalDiscount = parseInt(discount || 0);
+        const finalOutOfStock = outOfStock === 'true';
 
-        try {
-            if (sizes) parsedSizes = JSON.parse(sizes);
-            if (colors) parsedColors = JSON.parse(colors);
-            if (existingImages) parsedExistingImages = JSON.parse(existingImages); 
-        } catch (e) {
-            console.error("JSON Parsing Error during update:", e);
-            return res.status(400).json({ error: "Invalid format for sizes, colors, or existing images." });
-        }
-        
-        // 🌟 رفع الصور الجديدة إلى Cloudinary 🌟
-        const newUploadPromises = req.files.map(file => uploadToCloudinary(file));
-        const newUploadedUrls = await Promise.all(newUploadPromises);
-        // 🌟 نهاية الرفع 🌟
-        
-        // دمج الروابط القديمة مع الروابط الجديدة
-        const allImages = [...(parsedExistingImages || []), ...newUploadedUrls];
+        if (isNaN(finalPrice) || finalPrice <= 0) {
+            return res.status(400).json({ message: "Price must be a valid number greater than zero." });
+        }
 
-        // تحويل القيم الرقمية/المنطقية
-        const finalPrice = parseFloat(price);
-        const finalDiscount = parseInt(discount || 0);
-        const finalOutOfStock = outOfStock === 'true';
+        // ⭐ تحليل سلاسل JSON ⭐
+        let parsedSizes = [];
+        let parsedColors = [];
+        let parsedExistingImages = [];
 
-        const updatedProduct = await Product.findByIdAndUpdate(
-            id,
-            {
-                name,
-                description,
-                price: finalPrice,
-                category,
-                discount: finalDiscount,
-                outOfStock: finalOutOfStock,
-                images: allImages, // استخدام جميع روابط Cloudinary
-                image: allImages[0] || null, // الصورة الرئيسية
-                sizes: parsedSizes, 
-                colors: parsedColors,
-            },
-            { new: true }
-        );
+        try {
+            if (sizes) parsedSizes = JSON.parse(sizes);
+            if (colors) parsedColors = JSON.parse(colors);
+            // التأكد من أن existingImages تم تمريره لتجنب خطأ JSON.parse
+            if (existingImages && existingImages !== 'undefined') { 
+                parsedExistingImages = JSON.parse(existingImages);
+            } 
+        } catch (e) {
+            console.error("JSON Parsing Error during update:", e);
+            return res.status(400).json({ error: "Invalid format for sizes, colors, or existing images." });
+        }
+        
+        // 🌟 رفع الصور الجديدة إلى Cloudinary 🌟
+        const newUploadPromises = req.files.map(file => uploadToCloudinary(file));
+        const newUploadedUrls = await Promise.all(newUploadPromises);
+        // 🌟 نهاية الرفع 🌟
+        
+        // دمج الروابط القديمة مع الروابط الجديدة. (إذا كان parsedExistingImages فارغاً، سيظل مصفوفة فارغة)
+        const allImages = [...(parsedExistingImages || []), ...newUploadedUrls];
+        
+        // إذا كان المستخدم قد حذف كل الصور، فسنرفض التعديل
+        if (allImages.length === 0) {
+            return res.status(400).json({ message: "Product must have at least one image." });
+        }
 
-        if (!updatedProduct) {
-            return res.status(404).json({ message: "Product not found." });
-        }
 
-        res.json(updatedProduct);
+        const updateFields = {
+            name,
+            description,
+            price: finalPrice, // تم التحقق منه وتخزينه
+            category,
+            discount: finalDiscount,
+            outOfStock: finalOutOfStock,
+            images: allImages, // استخدام جميع روابط Cloudinary
+            image: allImages[0] || null, // الصورة الرئيسية
+            sizes: parsedSizes, 
+            colors: parsedColors,
+        };
 
-    } catch (error) {
-        console.error("Error updating product:", error);
-        res.status(500).json({ message: "Failed to update product.", error: error.message });
-    }
+        const updatedProduct = await Product.findByIdAndUpdate(
+            id,
+            updateFields,
+            { new: true, runValidators: true } // 💡 إضافة runValidators لتطبيق قواعد Mongoose
+        );
+
+        if (!updatedProduct) {
+            return res.status(404).json({ message: "Product not found." });
+        }
+
+        res.json(updatedProduct);
+
+    } catch (error) {
+        // رسالة خطأ أكثر تفصيلاً في حالة فشل التحقق من المخطط (Schema)
+        if (error.name === 'ValidationError') {
+             return res.status(400).json({ message: "Validation failed: " + error.message });
+        }
+        console.error("Error updating product:", error);
+        res.status(500).json({ message: "Failed to update product.", error: error.message });
+    }
 };
 
 // ======================================
 // 3. GET ALL PRODUCTS
 // ======================================
 const getProducts = async (req, res) => {
-    try {
-        const products = await Product.find().sort({ createdAt: -1 });
-        res.status(200).json(products);
-    } catch (error) {
-        console.error("Error fetching products:", error);
-        res.status(500).json({ message: "Failed to fetch products.", error: error.message });
-    }
+    try {
+        const products = await Product.find().sort({ createdAt: -1 });
+        res.status(200).json(products);
+    } catch (error) {
+        console.error("Error fetching products:", error);
+        res.status(500).json({ message: "Failed to fetch products.", error: error.message });
+    }
 };
 
 // ======================================
 // 4. GET SINGLE PRODUCT
 // ======================================
 const getProduct = async (req, res) => {
-    try {
-        const product = await Product.findById(req.params.id);
-        if (!product) return res.status(404).json({ message: "Product not found." });
-        res.status(200).json(product);
-    } catch (error) {
-        console.error("Error fetching single product:", error);
-        res.status(500).json({ message: "Failed to fetch product.", error: error.message });
-    }
+    try {
+        const product = await Product.findById(req.params.id);
+        if (!product) return res.status(404).json({ message: "Product not found." });
+        res.status(200).json(product);
+    } catch (error) {
+        console.error("Error fetching single product:", error);
+        res.status(500).json({ message: "Failed to fetch product.", error: error.message });
+    }
 };
 
 // ======================================
 // 5. DELETE PRODUCT
 // ======================================
 const deleteProduct = async (req, res) => {
-    try {
-        const product = await Product.findByIdAndDelete(req.params.id);
-        if (!product) return res.status(404).json({ message: "Product not found." });
-        res.status(200).json({ message: "Product deleted successfully." });
-    } catch (error) {
-        console.error("Error deleting product:", error);
-        res.status(500).json({ message: "Failed to delete product.", error: error.message });
-    }
+    try {
+        const product = await Product.findByIdAndDelete(req.params.id);
+        if (!product) return res.status(404).json({ message: "Product not found." });
+        res.status(200).json({ message: "Product deleted successfully." });
+    } catch (error) {
+        console.error("Error deleting product:", error);
+        res.status(500).json({ message: "Failed to delete product.", error: error.message });
+    }
 };
 
 // ======================================
 // EXPORTS
 // ======================================
 module.exports = {
-    addProduct,
-    updateProduct,
-    getProducts, 
-    getProduct,  
-    deleteProduct,
+    addProduct,
+    updateProduct,
+    getProducts, 
+    getProduct,  
+    deleteProduct,
 };
