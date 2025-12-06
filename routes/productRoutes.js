@@ -3,9 +3,10 @@ const router = express.Router();
 const { getProducts, getProduct, addProduct, updateProduct, deleteProduct } = require("../controllers/productController");
 const upload = require("../middleware/upload");
 
-// ⭐⭐ التصحيح الأهم: مسار الاستيراد لحل مشكلة 'MODULE_NOT_FOUND' ⭐⭐
-// تأكد أن المسار (../middleware/auth) صحيح لموقع ملف auth.js
-const { auth, admin } = require("../middleware/auth"); 
+// ⭐⭐ التعديل الأخير: نستخدم اسم الملف الأكثر احتمالية 'authMiddleware' ⭐⭐
+// إذا كان اسم ملف المصادقة لديك هو 'auth.js' فقط، قم بتغيير السطر إلى: 
+// const { auth, admin } = require("../middleware/auth"); 
+const { auth, admin } = require("../middleware/auth"); // يجب أن يكون هذا المسار هو الحل
 
 // Helper for input validation
 const validateProductInput = (req, res, next) => {
@@ -23,7 +24,6 @@ router.get("/", getProducts);
 router.get("/:id", getProduct);
 
 // ---------------- ADD PRODUCT (محمي بواسطة auth و admin) ----------------
-// التسلسل: [تحقق من التوكن] -> [تحقق من المدير] -> [رفع الصور] -> [التحقق من البيانات] -> [الدالة الرئيسية]
 router.post(
   "/", 
   auth, 
@@ -38,7 +38,6 @@ router.post(
 );
 
 // ---------------- UPDATE PRODUCT (محمي بواسطة auth و admin) ----------------
-// التسلسل: [تحقق من التوكن] -> [تحقق من المدير] -> [رفع الصور] -> [التحقق من البيانات] -> [الدالة الرئيسية]
 router.put(
   "/:id", 
   auth, 
