@@ -1,15 +1,14 @@
 // --- productController.js ---
 
 const Product = require('../dbModels/Product'); 
-// 🌟🌟🌟 استيراد Cloudinary 🌟🌟🌟
-const cloudinary = require('../config/cloudinaryConfig'); 
-// 🌟🌟🌟 تأكد من تعديل هذا المسار ليطابق مكان ملف الإعداد لديك 🌟🌟🌟
+// 🌟🌟🌟 التعديل الحاسم: تصحيح مسار استيراد Cloudinary 🌟🌟🌟
+// المسار الصحيح: العودة للخلف (..) ثم استيراد الملف مباشرة باسمه (cloudinary)
+const cloudinary = require('../cloudinary'); 
 
 // دالة مساعدة لرفع الملفات إلى Cloudinary
 const uploadToCloudinary = (file) => {
     return new Promise((resolve, reject) => {
         // تحويل البيانات المخزنة في الذاكرة (Buffer) إلى رابط Base64
-        // نستخدم file.mimetype و file.buffer القادمين من multer.memoryStorage
         const dataUri = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
         
         // استخدام Cloudinary API لرفع الملف
@@ -43,10 +42,10 @@ const addProduct = async (req, res) => {
             return res.status(400).json({ error: "Invalid format for sizes or colors." });
         }
 
-        // 🌟🌟🌟 التعديل الحاسم: رفع الصور إلى Cloudinary 🌟🌟🌟
+        // 🌟 رفع الصور إلى Cloudinary 🌟
         const uploadPromises = req.files.map(file => uploadToCloudinary(file));
         const uploadedUrls = await Promise.all(uploadPromises);
-        // 🌟🌟🌟 نهاية الرفع 🌟🌟🌟
+        // 🌟 نهاية الرفع 🌟
 
         // تحويل القيم الرقمية/المنطقية
         const finalPrice = parseFloat(price);
@@ -100,10 +99,10 @@ const updateProduct = async (req, res) => {
             return res.status(400).json({ error: "Invalid format for sizes, colors, or existing images." });
         }
         
-        // 🌟🌟🌟 التعديل الحاسم: رفع الصور الجديدة إلى Cloudinary 🌟🌟🌟
+        // 🌟 رفع الصور الجديدة إلى Cloudinary 🌟
         const newUploadPromises = req.files.map(file => uploadToCloudinary(file));
         const newUploadedUrls = await Promise.all(newUploadPromises);
-        // 🌟🌟🌟 نهاية الرفع 🌟🌟🌟
+        // 🌟 نهاية الرفع 🌟
         
         // دمج الروابط القديمة مع الروابط الجديدة
         const allImages = [...(parsedExistingImages || []), ...newUploadedUrls];
@@ -142,7 +141,46 @@ const updateProduct = async (req, res) => {
     }
 };
 
-// ... (باقي الدوال: getProducts, getProduct, deleteProduct)
+// ======================================
+// 3. GET ALL PRODUCTS
+// ======================================
+const getProducts = async (req, res) => {
+    try {
+        const products = await Product.find().sort({ createdAt: -1 });
+        res.status(200).json(products);
+    } catch (error) {
+        console.error("Error fetching products:", error);
+        res.status(500).json({ message: "Failed to fetch products.", error: error.message });
+    }
+};
+
+// ======================================
+// 4. GET SINGLE PRODUCT
+// ======================================
+const getProduct = async (req, res) => {
+    try {
+        const product = await Product.findById(req.params.id);
+        if (!product) return res.status(404).json({ message: "Product not found." });
+        res.status(200).json(product);
+    } catch (error) {
+        console.error("Error fetching single product:", error);
+        res.status(500).json({ message: "Failed to fetch product.", error: error.message });
+    }
+};
+
+// ======================================
+// 5. DELETE PRODUCT
+// ======================================
+const deleteProduct = async (req, res) => {
+    try {
+        const product = await Product.findByIdAndDelete(req.params.id);
+        if (!product) return res.status(404).json({ message: "Product not found." });
+        res.status(200).json({ message: "Product deleted successfully." });
+    } catch (error) {
+        console.error("Error deleting product:", error);
+        res.status(500).json({ message: "Failed to delete product.", error: error.message });
+    }
+};
 
 // ======================================
 // EXPORTS
