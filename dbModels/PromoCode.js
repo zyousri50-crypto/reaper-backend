@@ -1,56 +1,37 @@
-const mongoose = require('mongoose');
+const express = require("express");
+const router = express.Router();
 
-const PromoCodeSchema = new mongoose.Schema({
-  code: {
-    type: String,
-    required: true,
-    unique: true,
-    uppercase: true, // للتأكد من تخزين الكود بأحرف كبيرة
-  },
-  discountPercentage: {
-    type: Number,
-    required: true,
-    min: 1, // أقل نسبة خصم 1%
-    max: 100, // أقصى نسبة خصم 100%
-  },
-  isActive: {
-    type: Boolean,
-    default: true, // للتحكم في تفعيل/إلغاء تفعيل الكود من صفحة الأدمن
-  },
-  expiresAt: {
-    type: Date,
-    default: null, // يمكن أن يكون فارغًا إذا لم يكن له تاريخ انتهاء
-  },
-  maxUses: {
-    type: Number,
-    default: 0, // 0 يعني استخدام غير محدود
-  },
-  usedCount: {
-    type: Number,
-    default: 0, // عدد الاستخدامات التي تم استخدامها
-  },
-}, { timestamps: true });
+const {
+  createPromo,
+  getPromos,
+  validatePromo,
+  updatePromo,
+  deletePromo,
+} = require("../controllers/promoCodeController");
 
-// التأكد من أن الكود لم ينتهِ بعد ولم يتم استخدامه أكثر من الحد الأقصى
-PromoCodeSchema.methods.isValid = function() {
-  const currentDate = new Date();
+const { auth, admin } = require("../middleware/authMiddleware");
 
-  // تحقق من تاريخ الانتهاء
-  if (this.expiresAt && this.expiresAt < currentDate) {
-    return false;
-  }
+// ======================
+// PUBLIC ROUTES
+// ======================
 
-  // تحقق من الحد الأقصى للاستخدام
-  if (this.maxUses > 0 && this.usedCount >= this.maxUses) {
-    return false;
-  }
+// GET all promo codes
+router.get("/all", getPromos);
 
-  // تحقق من حالة الكود
-  if (!this.isActive) {
-    return false;
-  }
+// Validate promo code (frontend cart use)
+router.post("/validate", validatePromo);
 
-  return true;
-};
+// ======================
+// ADMIN ROUTES
+// ======================
 
-module.exports = mongoose.model('PromoCode', PromoCodeSchema);
+// Create promo
+router.post("/", auth, admin, createPromo);
+
+// Update promo
+router.put("/:code", auth, admin, updatePromo);
+
+// Delete promo
+router.delete("/:code", auth, admin, deletePromo);
+
+module.exports = router;
