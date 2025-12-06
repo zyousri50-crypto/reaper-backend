@@ -49,7 +49,7 @@ router.delete("/:code", auth, admin, deletePromo);
 // PUBLIC ROUTES
 // ======================
 // GET لاسترجاع جميع الأكواد الترويجية
-router.get("/", getPromos);
+router.get("/all", getPromos);  // تم تعديل المسار هنا ليكون "/all"
 
 // POST للتحقق من صلاحية كود البرومو
 router.post("/validate", validatePromo);
